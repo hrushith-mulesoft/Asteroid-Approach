@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:aggregators="http://www.mulesoft.org/schema/mule/aggregators" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/aggregators http://www.mulesoft.org/schema/mule/aggregators/current/mule-aggregators.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="0e74f679-f5ab-4603-9837-389949f566f1" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="2c91ff6b-7b32-43bb-8b87-f5c291f45f9f" basePath="/cad.api" >
+		<http:request-connection protocol="HTTPS" host="ssd-api.jpl.nasa.gov" />
+	</http:request-config>
+	<flow name="astroid-infoFlow" doc:id="095c8d5b-56d1-4769-8c80-79c5a2d46017" >
+		<http:listener doc:name="Listener" doc:id="a3b9b2cd-acef-44ef-bc99-6a21833ad2ca" config-ref="HTTP_Listener_config" path="/asteroids"/>
+		<http:request method="GET" doc:name="Request" doc:id="ce78c9f9-d1c6-4cc5-953d-35721e13935b" config-ref="HTTP_Request_configuration" path="/cad.api">
+			<http:query-params ><![CDATA[#[output application/java
+---
+{
+	"dist-max" : "5LD",
+	"date-min" : "now",
+	"date-max" : "+3650",
+	"sort" : "dist-min"
+}]]]></http:query-params>
+		</http:request>
+		<ee:transform doc:name="Set Payload &amp; Declare Output Variable" doc:id="3325c198-2151-4354-b6c5-607f3262ab21" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload.data]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="OutputData" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+}]]></ee:set-variable>
+				<ee:set-variable variableName="OutputData" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<set-variable value="#[sizeOf(payload)]" doc:name="noOfAsteroids" doc:id="522f8b3e-8f3d-4585-bd9d-de4700f8fa4c" variableName="noOfAsteroids"/>
+		<foreach doc:name="For Each" doc:id="58b388f4-4e41-4ef7-a80b-884bd433e9f0" collection="#[payload]">
+			<ee:transform doc:name="Transform Message" doc:id="5e095c8b-2bb7-479f-961b-fa6de2e904d9" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Asteroid Name" : payload[0],
+	"Close-Approach Distance" : payload[5] ++ " au",
+	"Close-Approach Date" : payload[3],
+	"Relative Velocity" : payload[7] ++ " km/s"	
+}
+
+]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+			<aggregators:group-based-aggregator doc:name="Group based aggregator" doc:id="82425ebc-3a57-4626-a1f5-3c4c01046ca2" groupSize="#[vars.noOfAsteroids]" name="AsteroidDataAggregator">
+				<aggregators:aggregation-complete >
+					<set-variable value="#[payload]" doc:name="OutputData" doc:id="d861fad6-0d14-452a-9fc3-8c55af0924e6" variableName="OutputData" />
+				</aggregators:aggregation-complete>
+			</aggregators:group-based-aggregator>
+		</foreach>
+		<ee:transform doc:name="Transform Message" doc:id="8cbeff1e-05b9-4e9f-ab4b-56110a7572df" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+"Asteroids at less than 5 Lunar Distance 10 Year From Now" :
+{
+	"NO of Asteroids" : vars.noOfAsteroids,
+	"Radius of Earth" : "4.2635e-05",
+	"Data" : vars.OutputData
+}
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<sub-flow name="astroid-infoSub_Flow" doc:id="0a4bf711-2425-474d-9dad-1f4778d89699" >
+		<ee:transform doc:name="Transform Message" doc:id="da4715ce-e7fb-4692-857a-42a45f882d9d">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+
+payload.fields map (item,index) ->
+{
+	"No of Asteroids" : payload.count,
+    "Asteroid Name" : payload.field[0],
+    "Closest Distance" : payload.data[5]
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+</mule>
