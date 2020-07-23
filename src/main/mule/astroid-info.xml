@@ -75,7 +75,7 @@ output application/json
 ---
 "Asteroids at less than 5 Lunar Distance 10 Year From Now" : 
 {
-	"Time Now" : now(),
+	"Time Now" : now() ++ " GMT",
 	"NO of Asteroids" : vars.noOfAsteroids,
 	"Radius of Earth" : "4.2635e-05",
 	"Data" : vars.OutputData
